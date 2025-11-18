@@ -1,6 +1,6 @@
 import { TagType, UpdateFeature } from './types';
 
-export const LOGO_URL = 'https://i.imgur.com/4nD2r9x.jpeg';
+export const LOGO_URL = 'https://i.ibb.co/DPGqh64h/legacy.png';
 
 export const LEGACY_UPDATE_DATA: UpdateFeature[] = [
   {

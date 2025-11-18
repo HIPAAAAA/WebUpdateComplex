@@ -1,3 +1,4 @@
+
 export enum TagType {
   SYSTEM = 'SISTEMAS',
   ECONOMY = 'ECONOMÍA',
@@ -6,6 +7,12 @@ export enum TagType {
   JOBS = 'TRABAJOS',
   EVENT = 'EVENTO'
 }
+
+// We define the content block type here so it can be saved
+export type ContentBlock = 
+  | { type: 'header'; content: string; color?: string }
+  | { type: 'paragraph'; content: string } 
+  | { type: 'image'; src: string };
 
 export interface UpdateFeature {
   id: string;
@@ -16,7 +23,8 @@ export interface UpdateFeature {
   secondaryImage?: string; // For the hero background or details
   tag: TagType;
   date: string;
-  fullContent: string; // Supports HTML-like string for this demo
+  fullContent: string; // Final HTML for display
+  rawBlocks?: ContentBlock[]; // Saved state for the editor to re-load properly
   isFeatured?: boolean;
   version?: string;
 }

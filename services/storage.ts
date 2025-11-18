@@ -20,6 +20,26 @@ export const saveUpdate = (update: UpdateFeature): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newUpdates));
 };
 
+export const updateUpdate = (updatedFeature: UpdateFeature): void => {
+  const currentUpdates = getStoredUpdates();
+  const index = currentUpdates.findIndex(u => u.id === updatedFeature.id);
+  
+  if (index !== -1) {
+    currentUpdates[index] = updatedFeature;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUpdates));
+  } else {
+    // If not found in local storage (maybe it was a static constant we are now "overriding" locally), save as new
+    // In a real app with backend, this would be a PUT request
+    saveUpdate(updatedFeature);
+  }
+};
+
+export const deleteUpdate = (id: string): void => {
+  const currentUpdates = getStoredUpdates();
+  const newUpdates = currentUpdates.filter(u => u.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(newUpdates));
+};
+
 // Helper to convert file to Base64 for image storage
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {

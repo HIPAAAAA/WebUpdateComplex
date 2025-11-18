@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import NewsGrid from './components/NewsGrid';
@@ -16,7 +15,6 @@ function App() {
   const refreshUpdates = () => {
     const localData = getStoredUpdates();
     // Combine local updates (which are newer) with static constants
-    // Note: In a real app, this would all come from one API
     setUpdates([...localData, ...LEGACY_UPDATE_DATA]);
   };
 
@@ -25,10 +23,12 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-legacy-purple selection:text-white">
+    <div className="min-h-screen bg-[#050505] text-white selection:bg-legacy-purple selection:text-white relative overflow-x-hidden">
+      
+      {/* Navbar */}
       <Navbar onOpenAdmin={() => setIsAdminOpen(true)} />
       
-      <main className="pt-0">
+      <main className="pt-0 relative z-10">
         <NewsGrid updates={updates} />
       </main>
       

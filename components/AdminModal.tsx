@@ -1,19 +1,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic } from 'lucide-react';
-import { UpdateFeature, TagType } from '../types';
-import { saveUpdate, fileToBase64 } from '../services/storage';
+import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, Disc } from 'lucide-react';
+import { UpdateFeature, TagType, ContentBlock } from '../types';
+import { saveUpdate, updateUpdate, deleteUpdate, fileToBase64, getStoredUpdates } from '../services/storage';
+import { LEGACY_UPDATE_DATA } from '../constants';
 
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateAdded: () => void;
 }
-
-type ContentBlock = 
-  | { type: 'header'; content: string; color?: string }
-  | { type: 'paragraph'; content: string } // Content now stores HTML with inline styles
-  | { type: 'image'; src: string };
 
 const TEXT_COLORS = [
   { name: 'White', value: '#ffffff' },
@@ -36,10 +32,7 @@ const RichTextEditor = ({
   const editorRef = useRef<HTMLDivElement>(null);
 
   const applyColor = (color: string) => {
-    // Restore focus to editor to ensure command works on selection
-    if (editorRef.current) {
-        editorRef.current.focus();
-    }
+    if (editorRef.current) editorRef.current.focus();
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand('foreColor', false, color);
     handleChange();
@@ -57,52 +50,30 @@ const RichTextEditor = ({
     }
   };
 
-  // Only set initial content once to prevent cursor jumping
   useEffect(() => {
-    if (editorRef.current && !editorRef.current.innerHTML && initialContent) {
-        editorRef.current.innerHTML = initialContent;
+    if (editorRef.current && editorRef.current.innerHTML !== initialContent) {
+        // Only update if significantly different to avoid cursor jumping, 
+        // or if initial load (empty editor vs content)
+        if (!editorRef.current.innerHTML) {
+             editorRef.current.innerHTML = initialContent;
+        }
     }
   }, []);
 
   return (
     <div className="w-full border border-white/10 rounded-xl bg-black/40 overflow-hidden focus-within:border-legacy-purple/50 transition-colors">
-      {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 bg-white/5 border-b border-white/5 flex-wrap">
         <div className="flex gap-1 border-r border-white/10 pr-2 mr-2">
-             <button 
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); applyFormat('bold'); }}
-                className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white"
-                title="Negrita"
-            >
-                <Bold size={14} />
-            </button>
-            <button 
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); applyFormat('italic'); }}
-                className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white"
-                title="Cursiva"
-            >
-                <Italic size={14} />
-            </button>
+             <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('bold'); }} className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white"><Bold size={14} /></button>
+             <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('italic'); }} className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white"><Italic size={14} /></button>
         </div>
-        
-        <span className="text-[10px] text-gray-500 uppercase font-bold mr-2">Color Texto:</span>
+        <span className="text-[10px] text-gray-500 uppercase font-bold mr-2">Color:</span>
         <div className="flex gap-1">
             {TEXT_COLORS.map(c => (
-            <button
-                key={c.value}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); applyColor(c.value); }}
-                className="w-5 h-5 rounded-full border border-transparent hover:border-white hover:scale-110 transition-all"
-                style={{ backgroundColor: c.value }}
-                title={c.name}
-            />
+            <button key={c.value} type="button" onMouseDown={(e) => { e.preventDefault(); applyColor(c.value); }} className="w-5 h-5 rounded-full border border-transparent hover:border-white hover:scale-110 transition-all" style={{ backgroundColor: c.value }} title={c.name} />
             ))}
         </div>
       </div>
-
-      {/* Editable Area */}
       <div
         ref={editorRef}
         contentEditable
@@ -117,10 +88,11 @@ const RichTextEditor = ({
 
 
 const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
+  // Views: 'LOGIN' | 'DASHBOARD' | 'EDITOR'
+  const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'EDITOR'>('LOGIN');
   
-  // General Form State
+  // Editor State
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [description, setDescription] = useState('');
@@ -128,26 +100,86 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   const [image, setImage] = useState<string>(''); 
   const [isFeatured, setIsFeatured] = useState(false);
   const [version, setVersion] = useState('');
-
-  // Content Builder State
   const [blocks, setBlocks] = useState<ContentBlock[]>([]);
   
+  // Dashboard List State
+  const [allUpdates, setAllUpdates] = useState<UpdateFeature[]>([]);
+
   const coverInputRef = useRef<HTMLInputElement>(null);
   const blockImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Refresh list when opening dashboard
+  useEffect(() => {
+    if (view === 'DASHBOARD') {
+        const local = getStoredUpdates();
+        // Combine local and static, prioritizing local if ID matches (though IDs shouldn't clash ideally)
+        // For this simple demo, we just show local ones as "Editable" and static ones as "Read only" visually or just list them all
+        // To enable editing static ones, we would treat them as new entries once saved.
+        setAllUpdates([...local, ...LEGACY_UPDATE_DATA]);
+    }
+  }, [view, isOpen]);
+
   if (!isOpen) return null;
 
-  // --- Authentication ---
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === 'admin123') {
-      setIsAuthenticated(true);
+  // --- Actions ---
+
+  const handleDiscordLogin = () => {
+    // In a real app, this redirects. 
+    // window.location.href = "https://discord.com/oauth2/authorize?client_id=1440464799250124970&response_type=code&redirect_uri=https%3A%2F%2Fupdate.complexrp.com%2Fapi%2Fauth%2Fcallback&scope=identify%20guilds.channels.read%20guilds%20guilds.members.read";
+    
+    // For this Frontend Demo:
+    setView('DASHBOARD');
+  };
+
+  const startCreate = () => {
+    setEditingId(null);
+    resetForm();
+    setView('EDITOR');
+  };
+
+  const startEdit = (update: UpdateFeature) => {
+    setEditingId(update.id);
+    setTitle(update.title);
+    setSubtitle(update.subtitle || '');
+    setDescription(update.description);
+    setTag(update.tag);
+    setImage(update.imageUrl);
+    setIsFeatured(!!update.isFeatured);
+    setVersion(update.version?.replace('UPDATE #', '') || '');
+    
+    // Restore blocks if they exist, otherwise try to preserve content in a single block
+    if (update.rawBlocks && update.rawBlocks.length > 0) {
+        setBlocks(update.rawBlocks);
     } else {
-      alert('Contraseña incorrecta');
+        // Fallback for legacy updates without block structure
+        setBlocks([{ type: 'paragraph', content: update.fullContent }]);
+    }
+    
+    setView('EDITOR');
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('¿Estás seguro de eliminar esta actualización?')) {
+        deleteUpdate(id);
+        // Refresh list
+        const local = getStoredUpdates();
+        setAllUpdates([...local, ...LEGACY_UPDATE_DATA.filter(u => u.id !== id)]); // Visual fix for list
+        onUpdateAdded(); // Refresh main app
     }
   };
 
-  // --- Cover Image Logic ---
+  const resetForm = () => {
+    setTitle('');
+    setSubtitle('');
+    setDescription('');
+    setImage('');
+    setBlocks([]);
+    setVersion('');
+    setIsFeatured(false);
+  };
+
+  // --- Logic ---
+
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       try {
@@ -159,7 +191,6 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
     }
   };
 
-  // --- Block Builder Logic ---
   const addBlock = (type: 'header' | 'paragraph') => {
     setBlocks([...blocks, { type, content: '', color: type === 'header' ? '#ffffff' : undefined }]);
   };
@@ -174,7 +205,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
             const base64 = await fileToBase64(e.target.files[0]);
             setBlocks([...blocks, { type: 'image', src: base64 }]);
         } catch (err) {
-            alert('Error al procesar la imagen del bloque');
+            alert('Error al procesar imagen');
         }
     }
     if (blockImageInputRef.current) blockImageInputRef.current.value = '';
@@ -203,18 +234,13 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   };
 
   const moveBlock = (index: number, direction: 'up' | 'down') => {
-    if (
-      (direction === 'up' && index === 0) || 
-      (direction === 'down' && index === blocks.length - 1)
-    ) return;
-
+    if ((direction === 'up' && index === 0) || (direction === 'down' && index === blocks.length - 1)) return;
     const newBlocks = [...blocks];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     [newBlocks[index], newBlocks[targetIndex]] = [newBlocks[targetIndex], newBlocks[index]];
     setBlocks(newBlocks);
   };
 
-  // --- Submission ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -223,7 +249,6 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
             return `<h3 style="color: ${block.color || '#ffffff'}; margin-top: 2rem; margin-bottom: 1rem;">${block.content}</h3>`;
         }
         if (block.type === 'paragraph') {
-            // Paragraph content is now already HTML from the rich editor
             return `<div style="margin-bottom: 1.5rem;">${block.content}</div>`;
         }
         if (block.type === 'image') {
@@ -234,68 +259,128 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
 
     const finalContent = generatedHtml || `<p>${description}</p>`;
 
-    const newUpdate: UpdateFeature = {
-      id: Date.now().toString(),
+    const payload: UpdateFeature = {
+      id: editingId || Date.now().toString(),
       title,
       subtitle,
       description,
       fullContent: finalContent,
+      rawBlocks: blocks, // Save state!
       imageUrl: image || 'https://picsum.photos/800/450', 
       tag,
-      date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(),
+      date: editingId 
+        ? allUpdates.find(u => u.id === editingId)?.date || new Date().toLocaleDateString() 
+        : new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase(),
       version: version ? `UPDATE #${version}` : 'UPDATE',
       isFeatured
     };
 
-    saveUpdate(newUpdate);
-    onUpdateAdded();
-    onClose();
+    if (editingId) {
+        updateUpdate(payload);
+    } else {
+        saveUpdate(payload);
+    }
     
-    // Reset form
-    setTitle('');
-    setSubtitle('');
-    setDescription('');
-    setImage('');
-    setBlocks([]);
-    setVersion('');
+    onUpdateAdded();
+    setView('DASHBOARD');
   };
 
-  // --- Login View ---
-  if (!isAuthenticated) {
+  // --- RENDER: LOGIN ---
+  if (view === 'LOGIN') {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
         <div className="bg-legacy-card border border-legacy-purple p-8 rounded-2xl w-full max-w-md relative shadow-[0_0_50px_rgba(124,58,237,0.2)]">
-          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-            <X size={24} />
-          </button>
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-legacy-purple/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="text-legacy-purple" size={32} />
             </div>
             <h2 className="text-2xl font-display font-bold text-white uppercase">Staff Access</h2>
-            <p className="text-gray-400 text-sm mt-2">Solo personal autorizado</p>
+            <p className="text-gray-400 text-sm mt-2">Identifícate con tu cuenta administrativa</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contraseña..."
-              className="w-full bg-black border border-white/10 rounded-full px-6 py-3 text-white focus:border-legacy-purple focus:outline-none"
-            />
-            <button 
-              type="submit" 
-              className="w-full bg-legacy-purple hover:bg-legacy-accent text-white font-bold py-3 rounded-full uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(124,58,237,0.4)]"
+          <div className="space-y-4">
+            {/* Real Button Link requested */}
+            <a 
+                href="https://discord.com/oauth2/authorize?client_id=1440464799250124970&response_type=code&redirect_uri=https%3A%2F%2Fupdate.complexrp.com%2Fapi%2Fauth%2Fcallback&scope=identify%20guilds.channels.read%20guilds%20guilds.members.read"
+                className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 rounded-full uppercase tracking-wider transition-all flex items-center justify-center gap-2"
             >
-              Entrar
+                <Disc size={20} /> Login con Discord
+            </a>
+            
+            {/* Dev Bypass for Demo Purposes */}
+            <button 
+                onClick={handleDiscordLogin}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-400 font-bold py-3 rounded-full uppercase tracking-wider transition-all text-xs"
+            >
+                (Demo: Simular Acceso Staff)
             </button>
-          </form>
+          </div>
         </div>
       </div>
     );
   }
 
-  // --- Main Form View ---
+  // --- RENDER: DASHBOARD ---
+  if (view === 'DASHBOARD') {
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto p-4 sm:p-10">
+            <div className="max-w-5xl mx-auto w-full">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-3xl font-display font-bold text-white uppercase">Panel de Gestión</h2>
+                        <p className="text-gray-500 text-sm">Administra las notas del parche visibles</p>
+                    </div>
+                    <div className="flex gap-4">
+                         <button onClick={() => setView('LOGIN')} className="p-2 text-gray-400 hover:text-white"><LogOut size={20}/></button>
+                         <button onClick={onClose} className="p-2 text-gray-400 hover:text-white"><X size={24}/></button>
+                    </div>
+                </div>
+
+                <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl overflow-hidden mb-8">
+                    <div className="p-6 flex justify-between items-center border-b border-white/10 bg-white/5">
+                        <h3 className="font-bold text-white">Actualizaciones Publicadas</h3>
+                        <button onClick={startCreate} className="bg-legacy-purple hover:bg-legacy-accent text-white px-4 py-2 rounded-full font-bold text-sm uppercase flex items-center gap-2">
+                            <Plus size={16} /> Nueva Update
+                        </button>
+                    </div>
+                    <div className="divide-y divide-white/5">
+                        {allUpdates.map(update => (
+                            <div key={update.id} className="p-4 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                                <img src={update.imageUrl} alt="" className="w-16 h-10 object-cover rounded bg-gray-800" />
+                                <div className="flex-grow">
+                                    <h4 className="text-white font-bold text-sm">{update.title}</h4>
+                                    <span className="text-xs text-gray-500">{update.version} • {update.date}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {update.isFeatured && <span className="text-[10px] bg-legacy-gold text-black font-bold px-2 py-0.5 rounded-full">DESTACADO</span>}
+                                    <button 
+                                        onClick={() => startEdit(update)}
+                                        className="p-2 text-gray-400 hover:text-legacy-purple hover:bg-white/10 rounded-full transition-colors"
+                                        title="Editar"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDelete(update.id)}
+                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white/10 rounded-full transition-colors"
+                                        title="Eliminar"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {allUpdates.length === 0 && (
+                            <div className="p-8 text-center text-gray-500">No hay actualizaciones registradas.</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // --- RENDER: EDITOR ---
   return (
     <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto">
       <div className="min-h-screen py-10 px-4 flex justify-center">
@@ -304,21 +389,21 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
             {/* Header */}
             <div className="p-6 border-b border-white/10 flex justify-between items-center sticky top-0 bg-[#0f0f0f]/95 backdrop-blur z-20">
                 <h2 className="text-2xl font-display font-bold text-white uppercase flex items-center gap-3">
-                  <span className="text-legacy-purple">Legacy</span> Update Creator
+                  <span className="text-legacy-purple">{editingId ? 'Editar' : 'Nueva'}</span> Update
                 </h2>
                 <div className="flex items-center gap-4">
                      <button 
                         type="button"
-                        onClick={onClose}
+                        onClick={() => setView('DASHBOARD')}
                         className="text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider"
                     >
-                        Cancelar
+                        Volver
                     </button>
                     <button 
                         onClick={handleSubmit}
                         className="bg-legacy-purple hover:bg-legacy-accent text-white font-bold px-6 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-legacy-purple/20"
                     >
-                        <Upload size={16} /> Publicar
+                        <Upload size={16} /> {editingId ? 'Guardar' : 'Publicar'}
                     </button>
                 </div>
             </div>
@@ -445,7 +530,6 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                             <div className="text-center py-20 text-gray-600 border-2 border-dashed border-white/5 rounded-xl">
                                 <Plus size={48} className="mx-auto mb-4 opacity-20" />
                                 <p>Usa los botones de arriba para agregar contenido.</p>
-                                <p className="text-sm mt-2">Puedes agregar títulos, textos explicativos e imágenes.</p>
                             </div>
                         )}
 
@@ -492,9 +576,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                                         <div className="flex items-center gap-2 text-xs text-gray-500 font-bold uppercase mb-1">
                                             <Type size={14} className="text-blue-400" /> 
                                             <span>Editor de Texto</span>
-                                            <span className="ml-auto text-[10px] font-normal opacity-50">Selecciona texto para dar color</span>
                                         </div>
-                                        
                                         <RichTextEditor
                                             initialContent={block.content}
                                             onChange={(html) => updateBlockContent(index, html)}
@@ -506,9 +588,6 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                                 {block.type === 'image' && (
                                     <div className="flex flex-col items-center gap-2">
                                         <img src={block.src} alt="Block content" className="max-h-[300px] rounded-lg border border-white/10" />
-                                        <span className="text-xs text-gray-500 uppercase font-bold flex items-center gap-2">
-                                            <ImageIcon size={12} /> Imagen Insertada
-                                        </span>
                                     </div>
                                 )}
                             </div>

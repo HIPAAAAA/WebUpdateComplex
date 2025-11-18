@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import NewsCard from './NewsCard';
 import Hero from './Hero';
@@ -35,7 +34,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
   if (!featuredUpdate) return <div className="text-white text-center py-20">Cargando actualizaciones...</div>;
 
   return (
-    <div className="min-h-screen bg-[#050505]">
+    <div className="min-h-screen bg-transparent">
       
       {/* Hero Section (Featured Update) */}
       <Hero feature={featuredUpdate} onClick={() => setSelectedFeature(featuredUpdate)} />
@@ -65,8 +64,16 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
       {selectedFeature && (
         <div className="fixed inset-0 z-[60] bg-[#050505] overflow-y-auto animate-[fadeIn_0.3s_ease-out]">
           
+          {/* --- BACKGROUND EFFECTS (ONLY FOR UPDATE VIEW) --- */}
+          {/* 1. Grid Pattern with radial mask to fade edges (Dots in corners effect) */}
+          <div className="fixed inset-0 z-0 bg-grid-white bg-[length:50px_50px] pointer-events-none opacity-[0.15] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
+          
+          {/* 2. Top Purple Illumination (Spotlight) */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-legacy-purple/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
+
+
           {/* Article Navigation Bar */}
-          <div className="sticky top-0 z-50 bg-[#050505]/90 backdrop-blur-md border-b border-white/10 px-4 h-16 flex items-center justify-between">
+          <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-white/10 px-4 h-16 flex items-center justify-between">
             <button 
                 onClick={() => setSelectedFeature(null)}
                 className="flex items-center gap-2 text-white hover:text-legacy-purple transition-colors rounded-full hover:bg-white/5 px-3 py-2"
@@ -113,7 +120,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
           </div>
 
           {/* Article Content */}
-          <div className="max-w-4xl mx-auto px-4 py-12 article-content">
+          <div className="relative z-10 max-w-4xl mx-auto px-4 py-12 article-content">
             <article className="prose prose-invert prose-xl max-w-none prose-headings:font-display prose-headings:uppercase prose-headings:text-legacy-purple prose-p:text-gray-300 prose-p:leading-relaxed prose-a:text-legacy-purple prose-img:rounded-2xl prose-img:border prose-img:border-white/10 prose-img:shadow-2xl prose-img:my-8">
                 <div dangerouslySetInnerHTML={{ __html: selectedFeature.fullContent }} />
             </article>
@@ -131,7 +138,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
 
           {/* Related Updates Section */}
           {relatedUpdates.length > 0 && (
-            <div className="max-w-7xl mx-auto px-4 pb-20 border-t border-white/10 pt-12">
+            <div className="relative z-10 max-w-7xl mx-auto px-4 pb-20 border-t border-white/10 pt-12">
               <h3 className="text-2xl font-display text-white mb-8 uppercase tracking-wider text-center md:text-left">
                 Noticias Relacionadas
               </h3>
@@ -146,7 +153,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
           )}
           
           {/* Footer inside modal */}
-          <div className="py-8 text-center text-gray-600 text-sm border-t border-white/5 bg-[#050505]">
+          <div className="py-8 text-center text-gray-600 text-sm border-t border-white/5 bg-[#050505] relative z-10">
             Complex Legacy News Portal
           </div>
 

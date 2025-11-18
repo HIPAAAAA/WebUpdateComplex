@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Menu, X, ExternalLink, Home, Lock } from 'lucide-react';
 import { LOGO_URL } from '../constants';
@@ -11,17 +10,18 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-legacy-dark/80 backdrop-blur-xl border-b border-white/5">
+    <nav className="fixed top-0 w-full z-50 bg-[#050505]/80 backdrop-blur-xl border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
           {/* Logo Area */}
           <div className="flex items-center gap-4">
-            <div className="relative group cursor-pointer">
+            <div className="relative cursor-pointer flex items-center">
+                {/* Logo Clean: Raw image, no filters, no borders. */}
                 <img 
                     src={LOGO_URL} 
                     alt="Complex Legacy Logo" 
-                    className="h-12 w-12 rounded-full object-cover border-2 border-legacy-purple shadow-[0_0_15px_rgba(124,58,237,0.5)] group-hover:shadow-[0_0_25px_rgba(124,58,237,0.8)] transition-all duration-300"
+                    className="h-12 w-auto object-contain"
                 />
             </div>
             <div className="flex flex-col justify-center">

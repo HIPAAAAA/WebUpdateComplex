@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowRight, Calendar } from 'lucide-react';
 import { UpdateFeature } from '../types';
@@ -10,7 +9,8 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ feature, onClick }) => {
   return (
-    <div className="relative w-full min-h-[80vh] pt-20 flex items-center overflow-hidden bg-[#050505]">
+    // Removed bg-[#050505]
+    <div className="relative w-full min-h-[80vh] pt-20 flex items-center overflow-hidden">
       {/* Abstract Background Elements */}
       <div className="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-legacy-purple/10 to-transparent z-0"></div>
       <div className="absolute -top-40 -right-40 w-[800px] h-[800px] bg-legacy-purple/20 rounded-full blur-[120px] animate-pulse-slow"></div>
@@ -72,8 +72,8 @@ const Hero: React.FC<HeroProps> = ({ feature, onClick }) => {
 
       </div>
       
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-[#050505] to-transparent z-10"></div>
+      {/* Bottom fade to blend with grid */}
+      <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#050505]/50 to-transparent z-10"></div>
     </div>
   );
 };
