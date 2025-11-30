@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useEffect } from 'react';
 import NewsCard from './NewsCard';
 import Hero from './Hero';
 import { UpdateFeature } from '../types';
@@ -6,10 +7,11 @@ import { X, ChevronLeft, Calendar, Tag, Share2 } from 'lucide-react';
 
 interface NewsGridProps {
   updates: UpdateFeature[];
+  selectedFeature: UpdateFeature | null;
+  onSelectFeature: (feature: UpdateFeature | null) => void;
 }
 
-const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
-  const [selectedFeature, setSelectedFeature] = useState<UpdateFeature | null>(null);
+const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectFeature }) => {
   
   // Logic to find the Priority Feature (The most recent one marked as featured)
   // If no featured ones exist, pick the very first one.
@@ -37,7 +39,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
     <div className="min-h-screen bg-transparent">
       
       {/* Hero Section (Featured Update) */}
-      <Hero feature={featuredUpdate} onClick={() => setSelectedFeature(featuredUpdate)} />
+      <Hero feature={featuredUpdate} onClick={() => onSelectFeature(featuredUpdate)} />
 
       {/* Grid Section */}
       <section id="more-updates" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -54,7 +56,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
             <NewsCard 
               key={feature.id} 
               feature={feature} 
-              onClick={setSelectedFeature} 
+              onClick={onSelectFeature} 
             />
           ))}
         </div>
@@ -65,17 +67,17 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
         <div className="fixed inset-0 z-[60] bg-[#050505] overflow-y-auto animate-[fadeIn_0.3s_ease-out]">
           
           {/* --- BACKGROUND EFFECTS (ONLY FOR UPDATE VIEW) --- */}
-          {/* 1. Grid Pattern with radial mask to fade edges (Dots in corners effect) */}
-          <div className="fixed inset-0 z-0 bg-grid-white bg-[length:50px_50px] pointer-events-none opacity-[0.15] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
+          {/* 1. Background Dots: Absolute + min-h-full (Scrolls with content), Very subtle mask */}
+          <div className="absolute top-0 left-0 w-full min-h-full z-0 bg-dot-white bg-[length:60px_60px] pointer-events-none [mask-image:linear-gradient(to_right,white_0%,transparent_10%,transparent_90%,white_100%)]"></div>
           
           {/* 2. Top Purple Illumination (Spotlight) */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-legacy-purple/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
 
 
           {/* Article Navigation Bar */}
-          <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-white/10 px-4 h-16 flex items-center justify-between">
+          <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-white/10 px-4 h-16 flex items-center justify-between mt-20">
             <button 
-                onClick={() => setSelectedFeature(null)}
+                onClick={() => onSelectFeature(null)}
                 className="flex items-center gap-2 text-white hover:text-legacy-purple transition-colors rounded-full hover:bg-white/5 px-3 py-2"
             >
                 <ChevronLeft size={20} />
@@ -84,7 +86,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
             <span className="text-gray-500 text-sm font-mono hidden md:block">{selectedFeature.version || 'UPDATE'}</span>
             <div className="flex gap-2">
                 <button className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10"><Share2 size={18} /></button>
-                <button onClick={() => setSelectedFeature(null)} className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white">
+                <button onClick={() => onSelectFeature(null)} className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white">
                     <X size={18} />
                 </button>
             </div>
@@ -145,7 +147,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates }) => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {relatedUpdates.map(related => (
                     <div key={related.id} className="transform scale-95 opacity-80 hover:scale-100 hover:opacity-100 transition-all duration-300">
-                      <NewsCard feature={related} onClick={setSelectedFeature} />
+                      <NewsCard feature={related} onClick={onSelectFeature} />
                     </div>
                  ))}
               </div>

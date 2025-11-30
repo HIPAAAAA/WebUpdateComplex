@@ -9,8 +9,8 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ feature, onClick }) => {
   return (
-    // Removed bg-[#050505]
-    <div className="relative w-full min-h-[80vh] pt-20 flex items-center overflow-hidden">
+    // Added animate-fade-in-up class
+    <div className="relative w-full min-h-[80vh] pt-20 flex items-center overflow-hidden animate-fade-in-up">
       {/* Abstract Background Elements */}
       <div className="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-legacy-purple/10 to-transparent z-0"></div>
       <div className="absolute -top-40 -right-40 w-[800px] h-[800px] bg-legacy-purple/20 rounded-full blur-[120px] animate-pulse-slow"></div>

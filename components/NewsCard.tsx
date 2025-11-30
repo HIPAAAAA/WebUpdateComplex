@@ -22,14 +22,14 @@ const NewsCard: React.FC<NewsCardProps> = ({ feature, onClick }) => {
   return (
     <div 
       onClick={() => onClick(feature)}
-      className="group relative bg-legacy-card rounded-none border-l-2 border-transparent hover:border-legacy-purple cursor-pointer transition-all duration-300 hover:bg-white/5 flex flex-col h-full"
+      className="group relative bg-legacy-card rounded-none border-l-2 border-transparent hover:border-legacy-purple cursor-pointer transition-all duration-300 hover:bg-white/5 flex flex-col h-full animate-fade-in-up hover:-translate-y-2 hover:shadow-2xl"
     >
       {/* Image */}
       <div className="relative aspect-[16/9] overflow-hidden bg-gray-900">
         <img 
           src={feature.imageUrl} 
           alt={feature.title} 
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 grayscale group-hover:grayscale-0"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0"
         />
         <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white border border-white/10">
             {feature.version || 'UPDATE'}
@@ -55,7 +55,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ feature, onClick }) => {
         
         <div className="mt-auto pt-4 border-t border-white/5 flex items-center justify-between">
             <span className="text-xs text-gray-400 group-hover:text-white transition-colors">Leer Articulo</span>
-            <ArrowUpRight size={16} className="text-legacy-purple opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+            <ArrowUpRight size={16} className="text-legacy-purple opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
         </div>
       </div>
     </div>

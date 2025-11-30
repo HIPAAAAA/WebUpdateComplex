@@ -1,9 +1,7 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, Disc } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, User, Key } from 'lucide-react';
 import { UpdateFeature, TagType, ContentBlock } from '../types';
 import { saveUpdate, updateUpdate, deleteUpdate, fileToBase64, getStoredUpdates } from '../services/storage';
-import { LEGACY_UPDATE_DATA } from '../constants';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -18,6 +16,51 @@ const TEXT_COLORS = [
   { name: 'Green', value: '#4ade80' },
   { name: 'Red', value: '#f87171' },
 ];
+
+// Configuration
+const WEBHOOK_URL = "https://ptb.discord.com/api/webhooks/1440535486098575443/2v70rrFwT8mJnG06XWaSCVhbHfvNeWB8Zlev9FQ4JaQPav5nxkhQbQp-KBDtK2X3Cfw-";
+
+const CREDENTIALS: Record<string, string> = {
+    'Hipaaaaa': '19708465',
+    'Gloobs': 'Gloobo2025',
+    'Magdiel': 'Complex2025',
+    'Administracion': 'Complex2025$'
+};
+
+// --- Webhook Helper ---
+const sendDiscordWebhook = async (update: UpdateFeature) => {
+    try {
+        const embed = {
+            title: `📢 NUEVA ACTUALIZACIÓN: ${update.title}`,
+            description: update.description,
+            url: "https://update.complexrp.com",
+            color: 7354842, // Legacy Purple (Decimal)
+            fields: [
+                { name: "Versión", value: update.version || "Update", inline: true },
+                { name: "Categoría", value: update.tag, inline: true },
+                { name: "Subtítulo", value: update.subtitle || "Complex Legacy" }
+            ],
+            image: {
+                url: update.imageUrl
+            },
+            footer: {
+                text: "Complex Legacy Update Portal • " + update.date
+            }
+        };
+
+        await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: "@everyone **¡Nueva actualización disponible en el portal!**\nDescubre los cambios aquí:",
+                embeds: [embed]
+            })
+        });
+        console.log("Webhook enviado correctamente");
+    } catch (error) {
+        console.error("Error enviando webhook:", error);
+    }
+};
 
 // --- Rich Text Editor Component ---
 const RichTextEditor = ({ 
@@ -52,8 +95,6 @@ const RichTextEditor = ({
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== initialContent) {
-        // Only update if significantly different to avoid cursor jumping, 
-        // or if initial load (empty editor vs content)
         if (!editorRef.current.innerHTML) {
              editorRef.current.innerHTML = initialContent;
         }
@@ -88,9 +129,13 @@ const RichTextEditor = ({
 
 
 const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded }) => {
-  // Views: 'LOGIN' | 'DASHBOARD' | 'EDITOR'
   const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'EDITOR'>('LOGIN');
   
+  // Login State
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
   // Editor State
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -111,25 +156,28 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   // Refresh list when opening dashboard
   useEffect(() => {
     if (view === 'DASHBOARD') {
-        const local = getStoredUpdates();
-        // Combine local and static, prioritizing local if ID matches (though IDs shouldn't clash ideally)
-        // For this simple demo, we just show local ones as "Editable" and static ones as "Read only" visually or just list them all
-        // To enable editing static ones, we would treat them as new entries once saved.
-        setAllUpdates([...local, ...LEGACY_UPDATE_DATA]);
+        const data = getStoredUpdates();
+        setAllUpdates(data);
     }
   }, [view, isOpen]);
 
   if (!isOpen) return null;
 
-  // --- Actions ---
+  // --- Login Logic ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
 
-  const handleDiscordLogin = () => {
-    // In a real app, this redirects. 
-    // window.location.href = "https://discord.com/oauth2/authorize?client_id=1440464799250124970&response_type=code&redirect_uri=https%3A%2F%2Fupdate.complexrp.com%2Fapi%2Fauth%2Fcallback&scope=identify%20guilds.channels.read%20guilds%20guilds.members.read";
+    const correctPassword = CREDENTIALS[username];
     
-    // For this Frontend Demo:
-    setView('DASHBOARD');
+    if (correctPassword && correctPassword === password) {
+        setView('DASHBOARD');
+    } else {
+        setLoginError('Usuario o contraseña incorrectos.');
+    }
   };
+
+  // --- Actions ---
 
   const startCreate = () => {
     setEditingId(null);
@@ -147,11 +195,9 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
     setIsFeatured(!!update.isFeatured);
     setVersion(update.version?.replace('UPDATE #', '') || '');
     
-    // Restore blocks if they exist, otherwise try to preserve content in a single block
     if (update.rawBlocks && update.rawBlocks.length > 0) {
         setBlocks(update.rawBlocks);
     } else {
-        // Fallback for legacy updates without block structure
         setBlocks([{ type: 'paragraph', content: update.fullContent }]);
     }
     
@@ -161,10 +207,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   const handleDelete = (id: string) => {
     if (window.confirm('¿Estás seguro de eliminar esta actualización?')) {
         deleteUpdate(id);
-        // Refresh list
-        const local = getStoredUpdates();
-        setAllUpdates([...local, ...LEGACY_UPDATE_DATA.filter(u => u.id !== id)]); // Visual fix for list
-        onUpdateAdded(); // Refresh main app
+        setAllUpdates(getStoredUpdates()); 
+        onUpdateAdded(); 
     }
   };
 
@@ -241,7 +285,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
     setBlocks(newBlocks);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const generatedHtml = blocks.map(block => {
@@ -265,7 +309,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
       subtitle,
       description,
       fullContent: finalContent,
-      rawBlocks: blocks, // Save state!
+      rawBlocks: blocks, 
       imageUrl: image || 'https://picsum.photos/800/450', 
       tag,
       date: editingId 
@@ -279,6 +323,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
         updateUpdate(payload);
     } else {
         saveUpdate(payload);
+        // SEND WEBHOOK ONLY ON CREATION
+        await sendDiscordWebhook(payload);
     }
     
     onUpdateAdded();
@@ -288,7 +334,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   // --- RENDER: LOGIN ---
   if (view === 'LOGIN') {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm px-4 animate-fade-in-up">
         <div className="bg-legacy-card border border-legacy-purple p-8 rounded-2xl w-full max-w-md relative shadow-[0_0_50px_rgba(124,58,237,0.2)]">
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
           <div className="text-center mb-8">
@@ -296,25 +342,48 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
               <Lock className="text-legacy-purple" size={32} />
             </div>
             <h2 className="text-2xl font-display font-bold text-white uppercase">Staff Access</h2>
-            <p className="text-gray-400 text-sm mt-2">Identifícate con tu cuenta administrativa</p>
+            <p className="text-gray-400 text-sm mt-2">Panel de Administración Complex Legacy</p>
           </div>
-          <div className="space-y-4">
-            {/* Real Button Link requested */}
-            <a 
-                href="https://discord.com/oauth2/authorize?client_id=1440464799250124970&response_type=code&redirect_uri=https%3A%2F%2Fupdate.complexrp.com%2Fapi%2Fauth%2Fcallback&scope=identify%20guilds.channels.read%20guilds%20guilds.members.read"
-                className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 rounded-full uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-            >
-                <Disc size={20} /> Login con Discord
-            </a>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Usuario</label>
+                <div className="relative">
+                    <User className="absolute left-3 top-3 text-gray-500" size={18} />
+                    <input 
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Nombre de usuario"
+                        className="w-full bg-black border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-legacy-purple focus:outline-none"
+                    />
+                </div>
+            </div>
+            <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Contraseña</label>
+                <div className="relative">
+                    <Key className="absolute left-3 top-3 text-gray-500" size={18} />
+                    <input 
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-black border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-legacy-purple focus:outline-none"
+                    />
+                </div>
+            </div>
+
+            {loginError && (
+                <p className="text-red-500 text-xs text-center font-bold">{loginError}</p>
+            )}
             
-            {/* Dev Bypass for Demo Purposes */}
             <button 
-                onClick={handleDiscordLogin}
-                className="w-full bg-white/5 hover:bg-white/10 text-gray-400 font-bold py-3 rounded-full uppercase tracking-wider transition-all text-xs"
+                type="submit"
+                className="w-full bg-legacy-purple hover:bg-legacy-accent text-white font-bold py-3 rounded-full uppercase tracking-wider transition-all shadow-lg shadow-legacy-purple/20 hover:shadow-legacy-purple/40 transform hover:-translate-y-1"
             >
-                (Demo: Simular Acceso Staff)
+                Iniciar Sesión
             </button>
-          </div>
+          </form>
         </div>
       </div>
     );
@@ -323,12 +392,12 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   // --- RENDER: DASHBOARD ---
   if (view === 'DASHBOARD') {
     return (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto p-4 sm:p-10">
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto p-4 sm:p-10 animate-fade-in-up">
             <div className="max-w-5xl mx-auto w-full">
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h2 className="text-3xl font-display font-bold text-white uppercase">Panel de Gestión</h2>
-                        <p className="text-gray-500 text-sm">Administra las notas del parche visibles</p>
+                        <p className="text-gray-500 text-sm">Bienvenido, <span className="text-legacy-gold">{username}</span></p>
                     </div>
                     <div className="flex gap-4">
                          <button onClick={() => setView('LOGIN')} className="p-2 text-gray-400 hover:text-white"><LogOut size={20}/></button>
@@ -339,7 +408,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                 <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl overflow-hidden mb-8">
                     <div className="p-6 flex justify-between items-center border-b border-white/10 bg-white/5">
                         <h3 className="font-bold text-white">Actualizaciones Publicadas</h3>
-                        <button onClick={startCreate} className="bg-legacy-purple hover:bg-legacy-accent text-white px-4 py-2 rounded-full font-bold text-sm uppercase flex items-center gap-2">
+                        <button onClick={startCreate} className="bg-legacy-purple hover:bg-legacy-accent text-white px-4 py-2 rounded-full font-bold text-sm uppercase flex items-center gap-2 shadow-lg hover:shadow-legacy-purple/30 transition-all">
                             <Plus size={16} /> Nueva Update
                         </button>
                     </div>
@@ -382,7 +451,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
 
   // --- RENDER: EDITOR ---
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm overflow-y-auto animate-fade-in-up">
       <div className="min-h-screen py-10 px-4 flex justify-center">
         <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl w-full max-w-5xl relative shadow-2xl flex flex-col overflow-hidden">
             
@@ -526,13 +595,6 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                     </div>
 
                     <div className="flex-grow bg-black border border-white/10 rounded-2xl p-6 space-y-4 overflow-y-auto max-h-[60vh] scrollbar-hide">
-                        {blocks.length === 0 && (
-                            <div className="text-center py-20 text-gray-600 border-2 border-dashed border-white/5 rounded-xl">
-                                <Plus size={48} className="mx-auto mb-4 opacity-20" />
-                                <p>Usa los botones de arriba para agregar contenido.</p>
-                            </div>
-                        )}
-
                         {blocks.map((block, index) => (
                             <div key={index} className="group relative bg-[#1a1a1a] border border-white/5 rounded-xl p-4 hover:border-white/20 transition-colors">
                                 {/* Block Controls */}
@@ -552,10 +614,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                                                 placeholder="Escribe el título de la sección..."
                                                 style={{ color: block.color }}
                                                 className="w-full bg-transparent border-none text-2xl font-display font-bold placeholder-gray-600 focus:outline-none focus:ring-0"
-                                                autoFocus
                                             />
                                         </div>
-                                        {/* Color Picker for Header (Line color) */}
                                         <div className="flex gap-2 pl-8">
                                             {TEXT_COLORS.map(c => (
                                                 <button

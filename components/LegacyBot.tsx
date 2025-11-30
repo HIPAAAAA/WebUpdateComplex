@@ -58,7 +58,7 @@ const LegacyBot: React.FC = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-[360px] h-[500px] bg-[#121212] rounded-xl shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-[slideUp_0.3s_ease-out]">
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-[360px] h-[500px] bg-[#121212] rounded-xl shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-slide-up">
           
           {/* Header */}
           <div className="p-4 bg-legacy-purple flex items-center justify-between">
