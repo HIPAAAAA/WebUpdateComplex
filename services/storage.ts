@@ -5,7 +5,17 @@ const API_URL = '/api/updates';
 
 export const getStoredUpdates = async (): Promise<UpdateFeature[]> => {
   try {
-    const response = await fetch(API_URL);
+    // Added headers and cache: 'no-store' to prevent browser caching issues
+    // This ensures that when you delete/add an item, the list updates immediately
+    const response = await fetch(API_URL, {
+        cache: 'no-store',
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    });
+    
     if (!response.ok) {
         throw new Error('Failed to fetch updates');
     }
@@ -49,8 +59,12 @@ export const updateUpdate = async (updatedFeature: UpdateFeature): Promise<void>
 
 export const deleteUpdate = async (id: string): Promise<void> => {
   try {
-    await fetch(`${API_URL}?id=${id}`, {
+    // encodeURIComponent ensures special characters in IDs don't break the URL
+    await fetch(`${API_URL}?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
     });
   } catch (error) {
     console.error("Error deleting update", error);

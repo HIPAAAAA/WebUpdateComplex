@@ -173,8 +173,21 @@ export default async function handler(request, response) {
     // DELETE: Remove update
     if (request.method === 'DELETE') {
       const { id } = request.query;
-      await Update.deleteOne({ id });
-      return response.status(200).json({ success: true });
+      
+      if (!id) {
+        return response.status(400).json({ error: 'ID param missing' });
+      }
+
+      // Try deleting by custom string 'id' first
+      let result = await Update.deleteOne({ id: id });
+      
+      // If nothing was deleted, check if the ID provided is a valid MongoDB ObjectId 
+      // and try deleting by _id (fallback mechanism)
+      if (result.deletedCount === 0 && mongoose.Types.ObjectId.isValid(id)) {
+         result = await Update.deleteOne({ _id: id });
+      }
+
+      return response.status(200).json({ success: true, deletedCount: result.deletedCount });
     }
 
     return response.status(405).json({ message: 'Method not allowed' });
