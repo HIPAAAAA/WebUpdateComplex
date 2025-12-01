@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, User, Key } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, User, Key, Loader2 } from 'lucide-react';
 import { UpdateFeature, TagType, ContentBlock } from '../types';
 import { saveUpdate, updateUpdate, deleteUpdate, fileToBase64, getStoredUpdates } from '../services/storage';
 
@@ -149,6 +149,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   
   // Dashboard List State
   const [allUpdates, setAllUpdates] = useState<UpdateFeature[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const blockImageInputRef = useRef<HTMLInputElement>(null);
@@ -156,10 +158,16 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   // Refresh list when opening dashboard
   useEffect(() => {
     if (view === 'DASHBOARD') {
-        const data = getStoredUpdates();
-        setAllUpdates(data);
+        loadDashboardData();
     }
   }, [view, isOpen]);
+
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    const data = await getStoredUpdates();
+    setAllUpdates(data);
+    setIsLoading(false);
+  };
 
   if (!isOpen) return null;
 
@@ -204,11 +212,13 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
     setView('EDITOR');
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('¿Estás seguro de eliminar esta actualización?')) {
-        deleteUpdate(id);
-        setAllUpdates(getStoredUpdates()); 
+        setIsLoading(true);
+        await deleteUpdate(id);
+        await loadDashboardData();
         onUpdateAdded(); 
+        setIsLoading(false);
     }
   };
 
@@ -287,6 +297,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
 
     const generatedHtml = blocks.map(block => {
         if (block.type === 'header') {
@@ -319,16 +330,22 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
       isFeatured
     };
 
-    if (editingId) {
-        updateUpdate(payload);
-    } else {
-        saveUpdate(payload);
-        // SEND WEBHOOK ONLY ON CREATION
-        await sendDiscordWebhook(payload);
+    try {
+        if (editingId) {
+            await updateUpdate(payload);
+        } else {
+            await saveUpdate(payload);
+            // SEND WEBHOOK ONLY ON CREATION
+            await sendDiscordWebhook(payload);
+        }
+        
+        onUpdateAdded();
+        setView('DASHBOARD');
+    } catch (error) {
+        alert("Error guardando la actualización");
+    } finally {
+        setIsSaving(false);
     }
-    
-    onUpdateAdded();
-    setView('DASHBOARD');
   };
 
   // --- RENDER: LOGIN ---
@@ -413,34 +430,40 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                         </button>
                     </div>
                     <div className="divide-y divide-white/5">
-                        {allUpdates.map(update => (
-                            <div key={update.id} className="p-4 flex items-center gap-4 hover:bg-white/5 transition-colors">
-                                <img src={update.imageUrl} alt="" className="w-16 h-10 object-cover rounded bg-gray-800" />
-                                <div className="flex-grow">
-                                    <h4 className="text-white font-bold text-sm">{update.title}</h4>
-                                    <span className="text-xs text-gray-500">{update.version} • {update.date}</span>
+                        {isLoading ? (
+                            <div className="p-8 text-center text-gray-500 flex justify-center"><Loader2 className="animate-spin" /></div>
+                        ) : (
+                        <>
+                            {allUpdates.map(update => (
+                                <div key={update.id} className="p-4 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                                    <img src={update.imageUrl} alt="" className="w-16 h-10 object-cover rounded bg-gray-800" />
+                                    <div className="flex-grow">
+                                        <h4 className="text-white font-bold text-sm">{update.title}</h4>
+                                        <span className="text-xs text-gray-500">{update.version} • {update.date}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {update.isFeatured && <span className="text-[10px] bg-legacy-gold text-black font-bold px-2 py-0.5 rounded-full">DESTACADO</span>}
+                                        <button 
+                                            onClick={() => startEdit(update)}
+                                            className="p-2 text-gray-400 hover:text-legacy-purple hover:bg-white/10 rounded-full transition-colors"
+                                            title="Editar"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDelete(update.id)}
+                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-white/10 rounded-full transition-colors"
+                                            title="Eliminar"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    {update.isFeatured && <span className="text-[10px] bg-legacy-gold text-black font-bold px-2 py-0.5 rounded-full">DESTACADO</span>}
-                                    <button 
-                                        onClick={() => startEdit(update)}
-                                        className="p-2 text-gray-400 hover:text-legacy-purple hover:bg-white/10 rounded-full transition-colors"
-                                        title="Editar"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDelete(update.id)}
-                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white/10 rounded-full transition-colors"
-                                        title="Eliminar"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        {allUpdates.length === 0 && (
-                            <div className="p-8 text-center text-gray-500">No hay actualizaciones registradas.</div>
+                            ))}
+                            {allUpdates.length === 0 && (
+                                <div className="p-8 text-center text-gray-500">No hay actualizaciones registradas.</div>
+                            )}
+                        </>
                         )}
                     </div>
                 </div>
@@ -470,9 +493,11 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                     </button>
                     <button 
                         onClick={handleSubmit}
-                        className="bg-legacy-purple hover:bg-legacy-accent text-white font-bold px-6 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-legacy-purple/20"
+                        disabled={isSaving}
+                        className="bg-legacy-purple hover:bg-legacy-accent text-white font-bold px-6 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-legacy-purple/20 disabled:opacity-50"
                     >
-                        <Upload size={16} /> {editingId ? 'Guardar' : 'Publicar'}
+                        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} 
+                        {editingId ? 'Guardar' : 'Publicar'}
                     </button>
                 </div>
             </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import NewsGrid from './components/NewsGrid';
@@ -12,11 +11,13 @@ function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [updates, setUpdates] = useState<UpdateFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<UpdateFeature | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refreshUpdates = () => {
-    // Now getStoredUpdates handles the merging of Local + Static - Deleted
-    const data = getStoredUpdates();
+  const refreshUpdates = async () => {
+    setIsLoading(true);
+    const data = await getStoredUpdates();
     setUpdates(data);
+    setIsLoading(false);
   };
 
   // Navigation Handlers
@@ -70,11 +71,17 @@ function App() {
       />
       
       <main className="pt-0 relative z-10">
-        <NewsGrid 
-            updates={updates} 
-            selectedFeature={selectedFeature}
-            onSelectFeature={setSelectedFeature}
-        />
+        {isLoading && updates.length === 0 ? (
+           <div className="flex h-screen items-center justify-center">
+             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-legacy-purple"></div>
+           </div>
+        ) : (
+          <NewsGrid 
+              updates={updates} 
+              selectedFeature={selectedFeature}
+              onSelectFeature={setSelectedFeature}
+          />
+        )}
       </main>
       
       <Footer />
