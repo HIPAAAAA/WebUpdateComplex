@@ -13,14 +13,9 @@ interface NewsGridProps {
 
 const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectFeature }) => {
   
-  // Logic to find the Priority Feature (The most recent one marked as featured)
-  // If no featured ones exist, pick the very first one.
+  // Logic to find the Priority Feature
   const featuredUpdate = updates.find(u => u.isFeatured) || updates[0];
-  
-  // Filter out the featured one from the grid list so it doesn't show twice
   const otherUpdates = updates.filter(u => u.id !== featuredUpdate?.id);
-
-  // Get related updates (just take up to 3 random/next updates for demo)
   const relatedUpdates = updates
     .filter(u => u.id !== selectedFeature?.id)
     .slice(0, 3);
@@ -33,7 +28,37 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectF
     }
   }, [selectedFeature]);
 
-  if (!featuredUpdate) return <div className="text-white text-center py-20">Cargando actualizaciones...</div>;
+  // --- SKELETON LOADING UI ---
+  // If no data exists yet (loading state or empty DB), show this instead of text
+  if (!featuredUpdate) {
+      return (
+        <div className="min-h-screen bg-transparent animate-pulse">
+            {/* Skeleton Hero */}
+            <div className="relative w-full h-[80vh] bg-white/5 flex items-center justify-center">
+                 <div className="max-w-7xl w-full px-8 grid grid-cols-2 gap-12">
+                     <div className="space-y-6">
+                        <div className="h-6 w-32 bg-white/10 rounded-full"></div>
+                        <div className="h-20 w-3/4 bg-white/10 rounded-xl"></div>
+                        <div className="h-4 w-full bg-white/10 rounded"></div>
+                        <div className="h-4 w-2/3 bg-white/10 rounded"></div>
+                        <div className="h-12 w-48 bg-white/10 rounded-full mt-8"></div>
+                     </div>
+                     <div className="h-[400px] bg-white/5 rounded-2xl border border-white/5"></div>
+                 </div>
+            </div>
+            
+            {/* Skeleton Grid */}
+            <div className="max-w-7xl mx-auto px-8 py-20">
+                <div className="h-8 w-64 bg-white/10 rounded mb-12"></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[1,2,3].map(i => (
+                        <div key={i} className="aspect-[16/9] bg-white/5 rounded-xl border border-white/5"></div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -66,13 +91,8 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectF
       {selectedFeature && (
         <div className="fixed inset-0 z-[60] bg-[#050505] overflow-y-auto animate-[fadeIn_0.3s_ease-out]">
           
-          {/* --- BACKGROUND EFFECTS (ONLY FOR UPDATE VIEW) --- */}
-          {/* 1. Background Dots: Absolute + min-h-full (Scrolls with content), Very subtle mask */}
           <div className="absolute top-0 left-0 w-full min-h-full z-0 bg-dot-white bg-[length:60px_60px] pointer-events-none [mask-image:linear-gradient(to_right,white_0%,transparent_10%,transparent_90%,white_100%)]"></div>
-          
-          {/* 2. Top Purple Illumination (Spotlight) */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-legacy-purple/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
-
 
           {/* Article Navigation Bar */}
           <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-white/10 px-4 h-16 flex items-center justify-between mt-20">

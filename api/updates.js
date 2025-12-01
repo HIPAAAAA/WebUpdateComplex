@@ -18,12 +18,20 @@ async function connectToDatabase() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      maxPoolSize: 10, // Limit connections
+      serverSelectionTimeoutMS: 5000, // Fail fast if no connection
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
     };
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
       return mongoose;
     });
   }
-  cached.conn = await cached.promise;
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    throw e;
+  }
   return cached.conn;
 }
 
@@ -46,13 +54,28 @@ const updateSchema = new mongoose.Schema({
 const Update = mongoose.models.Update || mongoose.model('Update', updateSchema);
 
 export default async function handler(request, response) {
+  // Set CORS headers for robustness
+  response.setHeader('Access-Control-Allow-Credentials', true);
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  response.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (request.method === 'OPTIONS') {
+    response.status(200).end();
+    return;
+  }
+
   try {
     await connectToDatabase();
 
     // GET: Fetch all updates
     if (request.method === 'GET') {
-      // Just fetch what is there. If empty, return empty array.
-      const updates = await Update.find({}).sort({ _id: -1 }); 
+      // .lean() is CRITICAL: It returns plain JS objects instead of Mongoose Docs.
+      // This is much faster and uses less memory, preventing crashes with large data.
+      const updates = await Update.find({}).sort({ _id: -1 }).lean(); 
       return response.status(200).json(updates);
     }
 
@@ -94,7 +117,6 @@ export default async function handler(request, response) {
       let result = await Update.deleteOne({ id: id });
       
       // If nothing was deleted, check if the ID provided is a valid MongoDB ObjectId 
-      // and try deleting by _id (fallback mechanism)
       if (result.deletedCount === 0 && mongoose.Types.ObjectId.isValid(id)) {
          result = await Update.deleteOne({ _id: id });
       }

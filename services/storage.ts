@@ -6,7 +6,6 @@ const API_URL = '/api/updates';
 export const getStoredUpdates = async (): Promise<UpdateFeature[]> => {
   try {
     // Added headers and cache: 'no-store' to prevent browser caching issues
-    // This ensures that when you delete/add an item, the list updates immediately
     const response = await fetch(API_URL, {
         cache: 'no-store',
         headers: {
@@ -17,12 +16,16 @@ export const getStoredUpdates = async (): Promise<UpdateFeature[]> => {
     });
     
     if (!response.ok) {
-        throw new Error('Failed to fetch updates');
+        // Log the text response for debugging (it might be an HTML error page from Vercel)
+        const text = await response.text();
+        console.error('API Error Response:', text);
+        throw new Error(`Failed to fetch updates: ${response.status}`);
     }
     const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error loading updates from DB", error);
+    // Return empty array instead of crashing app
     return [];
   }
 };
@@ -59,7 +62,6 @@ export const updateUpdate = async (updatedFeature: UpdateFeature): Promise<void>
 
 export const deleteUpdate = async (id: string): Promise<void> => {
   try {
-    // encodeURIComponent ensures special characters in IDs don't break the URL
     await fetch(`${API_URL}?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: {
@@ -72,11 +74,45 @@ export const deleteUpdate = async (id: string): Promise<void> => {
   }
 };
 
+// --- IMAGE COMPRESSION LOGIC ---
+// Compresses images to max 1200px width and JPEG quality 0.8
+// This reduces a 5MB PNG to ~200KB JPEG.
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        const MAX_WIDTH = 1200;
+        
+        if (width > MAX_WIDTH) {
+          height = (height * MAX_WIDTH) / width;
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("Could not get canvas context"));
+            return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Export as JPEG with 0.8 quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(compressedBase64);
+      };
+      img.onerror = (error) => reject(error);
+    };
     reader.onerror = (error) => reject(error);
   });
 };
