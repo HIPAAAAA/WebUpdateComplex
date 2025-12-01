@@ -4,7 +4,7 @@ import NewsGrid from './components/NewsGrid';
 import Footer from './components/Footer';
 import LegacyBot from './components/LegacyBot';
 import AdminModal from './components/AdminModal';
-import { getStoredUpdates } from './services/storage';
+import { getStoredUpdates, getUpdateDetails } from './services/storage';
 import { UpdateFeature } from './types';
 
 function App() {
@@ -12,12 +12,64 @@ function App() {
   const [updates, setUpdates] = useState<UpdateFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<UpdateFeature | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isMoreLoading, setIsMoreLoading] = useState(false);
 
+  // Initial Load
   const refreshUpdates = async () => {
     setIsLoading(true);
-    const data = await getStoredUpdates();
-    setUpdates(data);
+    setPage(1);
+    // Fetch first 9 items (enough for Hero + 2 rows)
+    const result = await getStoredUpdates(1, 9);
+    setUpdates(result.data);
+    setHasMore(result.pagination.hasMore);
     setIsLoading(false);
+  };
+
+  // Load More Handler
+  const handleLoadMore = async () => {
+    if (isMoreLoading || !hasMore) return;
+    
+    setIsMoreLoading(true);
+    const nextPage = page + 1;
+    const result = await getStoredUpdates(nextPage, 6);
+    
+    setUpdates(prev => [...prev, ...result.data]);
+    setPage(nextPage);
+    setHasMore(result.pagination.hasMore);
+    setIsMoreLoading(false);
+  };
+
+  // --- Progressive Loading Handler ---
+  const handleSelectFeature = async (feature: UpdateFeature | null) => {
+    if (!feature) {
+      setSelectedFeature(null);
+      return;
+    }
+
+    // 1. Immediate Feedback: Open the modal with the data we have (Title, Cover, Date)
+    // This makes the UI feel instant.
+    setSelectedFeature(feature);
+
+    // 2. Background Fetch: If we don't have the full content (HTML/Blocks), fetch it.
+    if (!feature.fullContent && !feature.rawBlocks) {
+      console.log(`Fetching full details for ${feature.title}...`);
+      const fullDetails = await getUpdateDetails(feature.id);
+      
+      if (fullDetails) {
+        // Update the selected feature state with the full details
+        setSelectedFeature(prev => {
+           // Ensure we are still looking at the same feature before updating
+           if (prev && prev.id === fullDetails.id) {
+             return fullDetails;
+           }
+           return prev;
+        });
+      }
+    }
   };
 
   // Navigation Handlers
@@ -44,18 +96,11 @@ function App() {
     refreshUpdates();
 
     // --- Discord OAuth Handler ---
-    // Check if we are returning from Discord login
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     
-    // Also check path to ensure we are on the callback route (handled by vercel.json rewrite)
     if (window.location.pathname.includes('/api/auth/callback') && code) {
-        console.log("Discord Auth Code received:", code);
-        
-        // 1. Clean the URL to look professional (remove ?code=...)
         window.history.replaceState({}, document.title, "/");
-
-        // 2. Open Admin Panel
         setIsAdminOpen(true);
     }
   }, []);
@@ -63,7 +108,6 @@ function App() {
   return (
     <div className="min-h-screen bg-[#050505] text-white selection:bg-legacy-purple selection:text-white relative overflow-x-hidden" id="top">
       
-      {/* Navbar passed with navigation handlers */}
       <Navbar 
         onOpenAdmin={() => setIsAdminOpen(true)} 
         onHome={handleGoHome}
@@ -79,7 +123,10 @@ function App() {
           <NewsGrid 
               updates={updates} 
               selectedFeature={selectedFeature}
-              onSelectFeature={setSelectedFeature}
+              onSelectFeature={handleSelectFeature}
+              hasMore={hasMore}
+              onLoadMore={handleLoadMore}
+              isMoreLoading={isMoreLoading}
           />
         )}
       </main>

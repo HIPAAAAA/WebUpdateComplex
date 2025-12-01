@@ -3,10 +3,20 @@ import { UpdateFeature } from '../types';
 // API URL - Uses relative path which works with Vercel rewrites
 const API_URL = '/api/updates';
 
-export const getStoredUpdates = async (): Promise<UpdateFeature[]> => {
+export interface PaginatedResult {
+  data: UpdateFeature[];
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    hasMore: boolean;
+  }
+}
+
+export const getStoredUpdates = async (page: number = 1, limit: number = 6): Promise<PaginatedResult> => {
   try {
     // Added headers and cache: 'no-store' to prevent browser caching issues
-    const response = await fetch(API_URL, {
+    const response = await fetch(`${API_URL}?page=${page}&limit=${limit}`, {
         cache: 'no-store',
         headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -16,17 +26,41 @@ export const getStoredUpdates = async (): Promise<UpdateFeature[]> => {
     });
     
     if (!response.ok) {
-        // Log the text response for debugging (it might be an HTML error page from Vercel)
+        // Log the text response for debugging
         const text = await response.text();
         console.error('API Error Response:', text);
         throw new Error(`Failed to fetch updates: ${response.status}`);
     }
+    const result = await response.json();
+    
+    // Fallback for backward compatibility if API returns array directly (during migration)
+    if (Array.isArray(result)) {
+        return {
+            data: result,
+            pagination: { total: result.length, page: 1, pages: 1, hasMore: false }
+        };
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error loading updates from DB", error);
+    // Return empty structure instead of crashing app
+    return { data: [], pagination: { total: 0, page: 1, pages: 0, hasMore: false } };
+  }
+};
+
+// NEW: Fetch full details for a single update (Lazy Loading)
+export const getUpdateDetails = async (id: string): Promise<UpdateFeature | null> => {
+  try {
+    const response = await fetch(`${API_URL}?id=${encodeURIComponent(id)}`, {
+        cache: 'no-store'
+    });
+    if (!response.ok) return null;
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error loading updates from DB", error);
-    // Return empty array instead of crashing app
-    return [];
+    console.error("Error fetching update details", error);
+    return null;
   }
 };
 
@@ -75,8 +109,7 @@ export const deleteUpdate = async (id: string): Promise<void> => {
 };
 
 // --- IMAGE COMPRESSION LOGIC ---
-// Compresses images to max 1200px width and JPEG quality 0.8
-// This reduces a 5MB PNG to ~200KB JPEG.
+// Updated: Reduced constraints to max 1000px and 0.7 quality for faster loading
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -89,7 +122,8 @@ export const fileToBase64 = (file: File): Promise<string> => {
         let width = img.width;
         let height = img.height;
         
-        const MAX_WIDTH = 1200;
+        // Optimización agresiva para evitar cargas lentas
+        const MAX_WIDTH = 1000;
         
         if (width > MAX_WIDTH) {
           height = (height * MAX_WIDTH) / width;
@@ -107,8 +141,8 @@ export const fileToBase64 = (file: File): Promise<string> => {
         
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Export as JPEG with 0.8 quality
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        // Export as JPEG with 0.7 quality (Good balance)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         resolve(compressedBase64);
       };
       img.onerror = (error) => reject(error);

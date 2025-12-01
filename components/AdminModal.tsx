@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, User, Key, Loader2 } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Check, Lock, Plus, Trash2, Type, Heading, Bold, Italic, LogOut, Edit2, User, Key, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { UpdateFeature, TagType, ContentBlock } from '../types';
-import { saveUpdate, updateUpdate, deleteUpdate, fileToBase64, getStoredUpdates } from '../services/storage';
+import { saveUpdate, updateUpdate, deleteUpdate, fileToBase64, getStoredUpdates, getUpdateDetails } from '../services/storage';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -149,8 +149,13 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   
   // Dashboard List State
   const [allUpdates, setAllUpdates] = useState<UpdateFeature[]>([]);
+  const [dashboardPage, setDashboardPage] = useState(1);
+  const [dashboardTotalPages, setDashboardTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Editor Loading state (fetching full details)
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const blockImageInputRef = useRef<HTMLInputElement>(null);
@@ -158,14 +163,17 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
   // Refresh list when opening dashboard
   useEffect(() => {
     if (view === 'DASHBOARD') {
-        loadDashboardData();
+        loadDashboardData(1);
     }
   }, [view, isOpen]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (page: number) => {
     setIsLoading(true);
-    const data = await getStoredUpdates();
-    setAllUpdates(data);
+    // Limit to 8 items in admin dashboard to keep it snappy
+    const result = await getStoredUpdates(page, 8);
+    setAllUpdates(result.data);
+    setDashboardPage(result.pagination.page);
+    setDashboardTotalPages(result.pagination.pages);
     setIsLoading(false);
   };
 
@@ -193,30 +201,42 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
     setView('EDITOR');
   };
 
-  const startEdit = (update: UpdateFeature) => {
-    setEditingId(update.id);
-    setTitle(update.title);
-    setSubtitle(update.subtitle || '');
-    setDescription(update.description);
-    setTag(update.tag);
-    setImage(update.imageUrl);
-    setIsFeatured(!!update.isFeatured);
-    setVersion(update.version?.replace('UPDATE #', '') || '');
+  const startEdit = async (partialUpdate: UpdateFeature) => {
+    setEditingId(partialUpdate.id);
+    // Populate basic fields immediately
+    setTitle(partialUpdate.title);
+    setSubtitle(partialUpdate.subtitle || '');
+    setDescription(partialUpdate.description);
+    setTag(partialUpdate.tag);
+    setImage(partialUpdate.imageUrl);
+    setIsFeatured(!!partialUpdate.isFeatured);
+    setVersion(partialUpdate.version?.replace('UPDATE #', '') || '');
     
-    if (update.rawBlocks && update.rawBlocks.length > 0) {
-        setBlocks(update.rawBlocks);
-    } else {
-        setBlocks([{ type: 'paragraph', content: update.fullContent }]);
+    // Set view to Editor and Loading
+    setView('EDITOR');
+    setIsEditorLoading(true);
+    setBlocks([]); // Clear old blocks while loading
+
+    // Fetch full details (rawBlocks are not in the list view anymore)
+    const fullUpdate = await getUpdateDetails(partialUpdate.id);
+    
+    if (fullUpdate) {
+        if (fullUpdate.rawBlocks && fullUpdate.rawBlocks.length > 0) {
+            setBlocks(fullUpdate.rawBlocks);
+        } else if (fullUpdate.fullContent) {
+            // Fallback if only HTML exists
+            setBlocks([{ type: 'paragraph', content: fullUpdate.fullContent }]);
+        }
     }
     
-    setView('EDITOR');
+    setIsEditorLoading(false);
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('¿Estás seguro de eliminar esta actualización?')) {
         setIsLoading(true);
         await deleteUpdate(id);
-        await loadDashboardData();
+        await loadDashboardData(dashboardPage);
         onUpdateAdded(); 
         setIsLoading(false);
     }
@@ -341,6 +361,8 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
         
         onUpdateAdded();
         setView('DASHBOARD');
+        // Reload dashboard at current page
+        loadDashboardData(dashboardPage);
     } catch (error) {
         alert("Error guardando la actualización");
     } finally {
@@ -425,9 +447,30 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                 <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl overflow-hidden mb-8">
                     <div className="p-6 flex justify-between items-center border-b border-white/10 bg-white/5">
                         <h3 className="font-bold text-white">Actualizaciones Publicadas</h3>
-                        <button onClick={startCreate} className="bg-legacy-purple hover:bg-legacy-accent text-white px-4 py-2 rounded-full font-bold text-sm uppercase flex items-center gap-2 shadow-lg hover:shadow-legacy-purple/30 transition-all">
-                            <Plus size={16} /> Nueva Update
-                        </button>
+                        <div className="flex gap-3">
+                             {/* Pagination Controls */}
+                             <div className="flex items-center gap-2 mr-4 bg-black/40 rounded-lg px-2 border border-white/5">
+                                <button 
+                                    onClick={() => loadDashboardData(dashboardPage - 1)}
+                                    disabled={dashboardPage <= 1 || isLoading}
+                                    className="p-1 hover:text-white text-gray-500 disabled:opacity-30"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <span className="text-xs font-mono text-gray-400">{dashboardPage}/{dashboardTotalPages}</span>
+                                <button 
+                                    onClick={() => loadDashboardData(dashboardPage + 1)}
+                                    disabled={dashboardPage >= dashboardTotalPages || isLoading}
+                                    className="p-1 hover:text-white text-gray-500 disabled:opacity-30"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                             </div>
+
+                            <button onClick={startCreate} className="bg-legacy-purple hover:bg-legacy-accent text-white px-4 py-2 rounded-full font-bold text-sm uppercase flex items-center gap-2 shadow-lg hover:shadow-legacy-purple/30 transition-all">
+                                <Plus size={16} /> Nueva Update
+                            </button>
+                        </div>
                     </div>
                     <div className="divide-y divide-white/5">
                         {isLoading ? (
@@ -493,7 +536,7 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                     </button>
                     <button 
                         onClick={handleSubmit}
-                        disabled={isSaving}
+                        disabled={isSaving || isEditorLoading}
                         className="bg-legacy-purple hover:bg-legacy-accent text-white font-bold px-6 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-legacy-purple/20 disabled:opacity-50"
                     >
                         {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} 
@@ -619,7 +662,14 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onUpdateAdded 
                         <input ref={blockImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleBlockImageUpload} />
                     </div>
 
-                    <div className="flex-grow bg-black border border-white/10 rounded-2xl p-6 space-y-4 overflow-y-auto max-h-[60vh] scrollbar-hide">
+                    <div className="flex-grow bg-black border border-white/10 rounded-2xl p-6 space-y-4 overflow-y-auto max-h-[60vh] scrollbar-hide relative">
+                        {isEditorLoading && (
+                            <div className="absolute inset-0 z-10 bg-black/80 flex items-center justify-center flex-col gap-2">
+                                <Loader2 className="animate-spin text-legacy-purple" size={32} />
+                                <span className="text-xs font-bold uppercase text-gray-400">Cargando datos...</span>
+                            </div>
+                        )}
+
                         {blocks.map((block, index) => (
                             <div key={index} className="group relative bg-[#1a1a1a] border border-white/5 rounded-xl p-4 hover:border-white/20 transition-colors">
                                 {/* Block Controls */}

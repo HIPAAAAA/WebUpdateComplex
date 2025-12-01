@@ -1,21 +1,29 @@
-
 import React, { useEffect } from 'react';
 import NewsCard from './NewsCard';
 import Hero from './Hero';
 import { UpdateFeature } from '../types';
-import { X, ChevronLeft, Calendar, Tag, Share2 } from 'lucide-react';
+import { X, ChevronLeft, Calendar, Tag, Share2, Loader2, ChevronDown } from 'lucide-react';
 
 interface NewsGridProps {
   updates: UpdateFeature[];
   selectedFeature: UpdateFeature | null;
   onSelectFeature: (feature: UpdateFeature | null) => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isMoreLoading: boolean;
 }
 
-const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectFeature }) => {
+const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectFeature, hasMore, onLoadMore, isMoreLoading }) => {
   
   // Logic to find the Priority Feature
-  const featuredUpdate = updates.find(u => u.isFeatured) || updates[0];
-  const otherUpdates = updates.filter(u => u.id !== featuredUpdate?.id);
+  // Ensure we have updates before trying to access index 0
+  const featuredUpdate = updates.find(u => u.isFeatured) || (updates.length > 0 ? updates[0] : null);
+  
+  // Filter out the featured update from the main grid to avoid duplication
+  const otherUpdates = featuredUpdate 
+    ? updates.filter(u => u.id !== featuredUpdate.id) 
+    : [];
+
   const relatedUpdates = updates
     .filter(u => u.id !== selectedFeature?.id)
     .slice(0, 3);
@@ -76,7 +84,7 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectF
             <div className="h-px bg-white/20 flex-grow"></div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {otherUpdates.map((feature) => (
             <NewsCard 
               key={feature.id} 
@@ -85,6 +93,29 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectF
             />
           ))}
         </div>
+
+        {/* Load More Button */}
+        {hasMore && (
+           <div className="flex justify-center">
+              <button 
+                onClick={onLoadMore} 
+                disabled={isMoreLoading}
+                className="group flex items-center gap-2 px-8 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-white font-bold uppercase tracking-widest text-xs transition-all disabled:opacity-50"
+              >
+                {isMoreLoading ? (
+                    <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Cargando...
+                    </>
+                ) : (
+                    <>
+                        Cargar Más
+                        <ChevronDown size={16} className="group-hover:translate-y-1 transition-transform" />
+                    </>
+                )}
+              </button>
+           </div>
+        )}
       </section>
 
       {/* Full Screen Article View Overlay */}
@@ -142,20 +173,30 @@ const NewsGrid: React.FC<NewsGridProps> = ({ updates, selectedFeature, onSelectF
           </div>
 
           {/* Article Content */}
-          <div className="relative z-10 max-w-4xl mx-auto px-4 py-12 article-content">
-            <article className="prose prose-invert prose-xl max-w-none prose-headings:font-display prose-headings:uppercase prose-headings:text-legacy-purple prose-p:text-gray-300 prose-p:leading-relaxed prose-a:text-legacy-purple prose-img:rounded-2xl prose-img:border prose-img:border-white/10 prose-img:shadow-2xl prose-img:my-8">
-                <div dangerouslySetInnerHTML={{ __html: selectedFeature.fullContent }} />
-            </article>
-            
-            <div className="mt-20 p-8 bg-legacy-purple/10 border border-legacy-purple/20 rounded-3xl text-center relative overflow-hidden group">
-                <div className="absolute inset-0 bg-legacy-purple/20 blur-xl group-hover:bg-legacy-purple/30 transition-colors"></div>
-                <div className="relative z-10">
-                  <h3 className="text-2xl font-display text-white mb-4">¿LISTO PARA PROBARLO?</h3>
-                  <button className="bg-white text-black font-bold px-8 py-3 uppercase tracking-widest hover:bg-legacy-gold transition-all rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)] transform hover:scale-105">
-                      Conectar al Servidor
-                  </button>
+          <div className="relative z-10 max-w-4xl mx-auto px-4 py-12 article-content min-h-[400px]">
+            {selectedFeature.fullContent ? (
+                <>
+                    <article className="prose prose-invert prose-xl max-w-none prose-headings:font-display prose-headings:uppercase prose-headings:text-legacy-purple prose-p:text-gray-300 prose-p:leading-relaxed prose-a:text-legacy-purple prose-img:rounded-2xl prose-img:border prose-img:border-white/10 prose-img:shadow-2xl prose-img:my-8">
+                        <div dangerouslySetInnerHTML={{ __html: selectedFeature.fullContent }} />
+                    </article>
+                    
+                    <div className="mt-20 p-8 bg-legacy-purple/10 border border-legacy-purple/20 rounded-3xl text-center relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-legacy-purple/20 blur-xl group-hover:bg-legacy-purple/30 transition-colors"></div>
+                        <div className="relative z-10">
+                        <h3 className="text-2xl font-display text-white mb-4">¿LISTO PARA PROBARLO?</h3>
+                        <button className="bg-white text-black font-bold px-8 py-3 uppercase tracking-widest hover:bg-legacy-gold transition-all rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)] transform hover:scale-105">
+                            Conectar al Servidor
+                        </button>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                // Loading State for Content
+                <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-500 animate-pulse">
+                    <Loader2 size={48} className="animate-spin text-legacy-purple" />
+                    <p className="text-sm font-bold uppercase tracking-widest">Cargando detalles de la actualización...</p>
                 </div>
-            </div>
+            )}
           </div>
 
           {/* Related Updates Section */}

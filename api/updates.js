@@ -71,12 +71,48 @@ export default async function handler(request, response) {
   try {
     await connectToDatabase();
 
-    // GET: Fetch all updates
+    // GET: Fetch updates
     if (request.method === 'GET') {
-      // .lean() is CRITICAL: It returns plain JS objects instead of Mongoose Docs.
-      // This is much faster and uses less memory, preventing crashes with large data.
-      const updates = await Update.find({}).sort({ _id: -1 }).lean(); 
-      return response.status(200).json(updates);
+      const { id, page = 1, limit = 9, search } = request.query;
+
+      // Scenario 1: Fetch SINGLE update with ALL details (Heavy payload)
+      if (id) {
+         const update = await Update.findOne({ id }).lean();
+         if (!update) return response.status(404).json({ error: 'Not found' });
+         return response.status(200).json(update);
+      }
+
+      // Scenario 2: Fetch PAGINATED list of updates (Light payload)
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const skip = (pageNum - 1) * limitNum;
+
+      // Optional search query
+      const query = {};
+      if (search) {
+        query.title = { $regex: search, $options: 'i' };
+      }
+
+      // We explicitly EXCLUDE fullContent and rawBlocks to make the initial load instant
+      // Optimized: Only fetch what's needed for the card
+      const updates = await Update.find(query)
+        .select('id title subtitle description imageUrl tag date version isFeatured') 
+        .sort({ _id: -1 }) // Newest first
+        .skip(skip)
+        .limit(limitNum)
+        .lean();
+      
+      const total = await Update.countDocuments(query);
+        
+      return response.status(200).json({
+        data: updates,
+        pagination: {
+          total,
+          page: pageNum,
+          pages: Math.ceil(total / limitNum),
+          hasMore: skip + updates.length < total
+        }
+      });
     }
 
     // POST: Create or Update (Upsert based on ID)

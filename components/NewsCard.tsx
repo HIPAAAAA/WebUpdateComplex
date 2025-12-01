@@ -29,6 +29,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ feature, onClick }) => {
         <img 
           src={feature.imageUrl} 
           alt={feature.title} 
+          loading="lazy"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0"
         />
         <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white border border-white/10">
